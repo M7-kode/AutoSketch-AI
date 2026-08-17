@@ -63,22 +63,42 @@ def build_contour_plan(image, epsilon_ratio=0.01, smooth=True):
     return DrawPlan(groups=groups, source_shape=image.shape[:2])
 
 
-def build_color_plan(image, palette_colors_rgb=None, color_count=6, dither=False,
-                     epsilon_ratio=0.01, smooth=True, skip_background=True):
-    """Un groupe de contours par couleur, en suivant la palette quand elle est connue."""
-    quantized, centers = _quantize(image, palette_colors_rgb, color_count, dither)
-
+def _color_groups(masks, image_shape, epsilon_ratio, smooth, skip_background):
     groups = []
-    for color_bgr, mask in color_masks(quantized, centers):
+    for color_bgr, mask in masks:
         contours = find_contours_from_mask(mask)
         if skip_background:
-            contours = [c for c in contours if not is_background_like(c, image.shape)]
+            contours = [c for c in contours if not is_background_like(c, image_shape)]
         paths = _optimize(_build_paths(contours, epsilon_ratio, smooth))
         if paths:
             b, g, r = color_bgr
             groups.append(((r, g, b), paths))
+    return groups
+
+
+def build_color_plan(image, palette_colors_rgb=None, color_count=6, dither=False,
+                     epsilon_ratio=0.01, smooth=True, skip_background=True):
+    """Un groupe de contours par couleur, en suivant la palette quand elle est connue."""
+    quantized, centers = _quantize(image, palette_colors_rgb, color_count, dither)
+    masks = color_masks(quantized, centers)
+
+    groups = _color_groups(masks, image.shape, epsilon_ratio, smooth, skip_background)
+    if not groups and skip_background:
+        # Ignorer le fond est une optimisation, jamais une raison de ne rien
+        # rendre. Quand l'image se reduit a une seule grande zone unie, cette
+        # zone est son unique contour : l'ecarter ne laisserait plus rien.
+        groups = _color_groups(masks, image.shape, epsilon_ratio, smooth, skip_background=False)
 
     return DrawPlan(groups=groups, source_shape=image.shape[:2])
+
+
+def distinct_color_count(image, palette_colors_rgb=None, color_count=6, dither=False):
+    """Nombre de couleurs reellement presentes apres quantification.
+
+    Sert a expliquer un plan vide : une palette qui ramene toute l'image a une
+    seule couleur ne donne rien a dessiner."""
+    quantized, _ = _quantize(image, palette_colors_rgb, color_count, dither)
+    return len(set(map(tuple, quantized.reshape(-1, quantized.shape[2]))))
 
 
 def build_pixel_plan(image, cols, palette_colors_rgb=None, color_count=6, dither=False,

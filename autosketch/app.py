@@ -8,7 +8,12 @@ import cv2
 from PIL import Image, ImageTk
 from pynput import keyboard
 
-from autosketch.drawing.plan import build_color_plan, build_contour_plan, build_pixel_plan
+from autosketch.drawing.plan import (
+    build_color_plan,
+    build_contour_plan,
+    build_pixel_plan,
+    distinct_color_count,
+)
 from autosketch.executor import execute_plan
 from autosketch.screen.calibration import capture_points, capture_points_until_enter
 from autosketch.screen.mouse import MouseController
@@ -379,6 +384,28 @@ class App:
                                 dither=self.dither_var.get(),
                                 epsilon_ratio=detail_to_epsilon_ratio(detail))
 
+    def _explain_empty_plan(self, palette):
+        """Dire ce qui s'est reellement passe : le curseur Detail n'y peut rien,
+        c'est presque toujours la palette qui aplatit l'image."""
+        if self.mode_var.get() == "contour":
+            self.log("Rien a dessiner : aucun contour trouve. Cette image est probablement "
+                     "trop uniforme ou trop floue.")
+            return
+
+        colors = palette.colors_rgb() if len(palette) else None
+        distinct = distinct_color_count(self.image, palette_colors_rgb=colors,
+                                        dither=self.dither_var.get())
+        if distinct <= 1:
+            if colors:
+                self.log(f"Rien a dessiner : avec les {len(colors)} couleur(s) calibrees, "
+                         f"toute l'image se ramene a une seule couleur. Recalibre la palette "
+                         f"du site (etape 2) en cliquant des couleurs bien differentes.")
+            else:
+                self.log("Rien a dessiner : cette image est unie. Essaie une autre image.")
+        else:
+            self.log(f"Rien a dessiner alors que l'image compte {distinct} couleurs. "
+                     f"Essaie le rendu Contours.")
+
     def _draw(self):
         if self.image is None:
             self.log("Charge d'abord une image (etape 1).")
@@ -394,7 +421,7 @@ class App:
         self.log(f"Preparation du trace ({self.mode_var.get()})...")
         plan = self._build_plan(palette)
         if plan.path_count() == 0:
-            self.log("Rien a dessiner dans cette image : baisse le detail ou change de mode.")
+            self._explain_empty_plan(palette)
             return
         self.log(f"{plan.path_count()} trait(s) sur {len(plan.groups)} couleur(s).")
 

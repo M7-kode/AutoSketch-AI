@@ -1,6 +1,21 @@
 import numpy as np
 
-from autosketch.drawing.plan import DrawPlan, build_color_plan, build_contour_plan, build_pixel_plan
+import cv2
+
+from autosketch.drawing.plan import (
+    DrawPlan,
+    build_color_plan,
+    build_contour_plan,
+    build_pixel_plan,
+    distinct_color_count,
+)
+
+
+def logo_image():
+    """Fond uni et une forme simple : le cas type d'un dessin de Skribbl."""
+    image = np.full((200, 200, 3), 255, dtype=np.uint8)
+    cv2.circle(image, (100, 100), 45, (0, 0, 200), -1)
+    return image
 
 
 def all_points(plan):
@@ -85,6 +100,48 @@ def test_color_plan_falls_back_to_kmeans_without_a_palette(two_tone_image):
 
     assert plan.path_count() > 0
     assert all(color is not None for color in plan.colors())
+
+
+def test_a_palette_missing_the_background_color_still_draws_something():
+    # Le bug remonte par l'utilisateur : avec une palette qui ne contient pas la
+    # couleur du fond, toute l'image se ramene a une seule couleur. Elle n'a plus
+    # qu'un contour, le cadre, et l'ecarter comme "fond" ne laissait plus rien.
+    plan = build_color_plan(logo_image(), palette_colors_rgb=[(255, 0, 0), (0, 0, 255)])
+
+    assert plan.path_count() > 0
+
+
+def test_a_flat_image_is_drawn_rather_than_dropped():
+    flat = np.full((60, 60, 3), (0, 0, 255), dtype=np.uint8)
+
+    plan = build_color_plan(flat, palette_colors_rgb=[(255, 0, 0)])
+
+    assert plan.path_count() > 0
+
+
+def test_the_background_is_still_skipped_when_there_is_more_to_draw():
+    # La retombee ne doit pas annuler l'optimisation dans le cas normal.
+    plan = build_color_plan(logo_image(), palette_colors_rgb=[(255, 255, 255), (255, 0, 0)])
+
+    assert plan.path_count() == 1  # le cercle seul, pas le cadre du fond
+
+
+def test_counting_colors_explains_an_empty_plan():
+    logo = logo_image()
+
+    assert distinct_color_count(logo, palette_colors_rgb=[(255, 0, 0), (0, 0, 255)]) == 1
+    assert distinct_color_count(logo, palette_colors_rgb=[(255, 255, 255), (255, 0, 0)]) == 2
+
+
+def test_the_detail_slider_is_not_what_makes_a_plan_empty(two_tone_image):
+    # Le message d'erreur conseillait de baisser le detail : c'etait faux, le
+    # nombre de traces ne depend pas de ce reglage.
+    palette = [(255, 0, 0), (0, 0, 255)]
+    counts = {build_color_plan(two_tone_image, palette_colors_rgb=palette,
+                               epsilon_ratio=ratio).path_count()
+              for ratio in (0.001, 0.01, 0.028)}
+
+    assert 0 not in counts
 
 
 def test_skipping_the_background_drops_the_full_frame_contour():
