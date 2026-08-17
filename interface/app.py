@@ -8,11 +8,13 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 import cv2
 from PIL import Image, ImageTk
+from pynput import keyboard
 
 from ai_engine.style_learning import apply_style, extract_style, record_drawing
 from ai_engine.trajectory_optimizer import refine_with_two_opt
 from automation.mouse_controller import MouseController
 from core.calibration import capture_points, capture_points_until_enter, map_points
+from drawing_engine.grid_runs import extract_color_runs
 from drawing_engine.path_builder import contours_to_paths, smooth_path
 from drawing_engine.path_optimizer import optimize_path_order, total_travel_distance
 from drawing_engine.shapes import (
@@ -24,8 +26,8 @@ from drawing_engine.shapes import (
     draw_polyline,
     draw_rectangle,
 )
-from plugins.palette import calibrate_palette, select_color
-from vision.color_segmentation import color_masks, quantize_colors
+from plugins.palette import calibrate_palette, load_palette, save_palette, select_color
+from vision.color_segmentation import color_masks, quantize_colors, quantize_to_palette
 from vision.contour_detection import (
     detect_edges,
     find_contours,
@@ -53,6 +55,8 @@ class App:
         self._preview_photo = None
         self.current_image = None
         self.current_image_name = None
+        self.color_palette = None
+        self._exit_event = threading.Event()
 
         root.title("AutoSketch AI")
         root.geometry("880x620")
@@ -63,6 +67,13 @@ class App:
         self._build_style()
         self._build_menu()
         self._build_layout()
+
+        self._key_listener = keyboard.Listener(on_press=self._on_key_press)
+        self._key_listener.start()
+
+    def _on_key_press(self, key):
+        if key == keyboard.Key.esc:
+            self._exit_event.set()
 
     # -- construction --
 
@@ -91,6 +102,9 @@ class App:
         menu_bar = tk.Menu(self.root)
 
         file_menu = tk.Menu(menu_bar, tearoff=False)
+        file_menu.add_command(label="Charger une palette...", command=self._load_palette)
+        file_menu.add_command(label="Enregistrer la palette...", command=self._save_palette)
+        file_menu.add_separator()
         file_menu.add_command(label="Quitter", command=self.root.destroy)
         menu_bar.add_cascade(label="Fichier", menu=file_menu)
 
@@ -193,6 +207,7 @@ class App:
         self.fill_lines_var = tk.IntVar(value=4)
         self.smooth_var = tk.BooleanVar(value=True)
         self.skip_background_var = tk.BooleanVar(value=True)
+        self.dither_var = tk.BooleanVar(value=False)
 
         self._add_scale(parent, 0, "Vitesse de trace (px/s)", self.speed_var, 100, 1200, "{:.0f}")
         self._add_scale(parent, 1, "Simplification des contours (%)", self.precision_var, 0.2, 3.0, "{:.1f}")
@@ -204,6 +219,8 @@ class App:
             row=5, column=0, columnspan=2, sticky="w", pady=(8, 2))
         ttk.Checkbutton(parent, text="Ignorer le fond (contours > 90% de l'image)",
                          variable=self.skip_background_var).grid(row=6, column=0, columnspan=2, sticky="w")
+        ttk.Checkbutton(parent, text="Dither (avec une palette chargee/calibree)",
+                         variable=self.dither_var).grid(row=7, column=0, columnspan=2, sticky="w")
 
         parent.columnconfigure(1, weight=1)
 
@@ -238,6 +255,7 @@ class App:
                 parent=self.root,
             ):
                 return
+        self._key_listener.stop()
         self.root.destroy()
 
     def log(self, message):
@@ -268,8 +286,9 @@ class App:
         if self._busy:
             return
         self._busy = True
+        self._exit_event.clear()
         self._set_buttons_enabled(False)
-        self._set_status("En cours...", busy=True)
+        self._set_status("En cours... (ECHAP pour interrompre)", busy=True)
 
         def wrapper():
             try:
@@ -282,6 +301,38 @@ class App:
                 self._set_status("Pret", busy=False)
 
         threading.Thread(target=wrapper, daemon=True).start()
+
+    def _finish_log(self):
+        if self._exit_event.is_set():
+            self.log("Interrompu (ECHAP).")
+        else:
+            self.log("Termine.")
+
+    def _load_palette(self):
+        path = filedialog.askopenfilename(
+            title="Charger une palette", filetypes=[("Palette JSON", "*.json"), ("Tous les fichiers", "*.*")],
+            parent=self.root)
+        if not path:
+            return
+        try:
+            self.color_palette = load_palette(path)
+        except Exception as e:
+            messagebox.showerror("AutoSketch AI", f"Impossible de charger la palette : {e}", parent=self.root)
+            return
+        self.log(f"Palette chargee : {len(self.color_palette.swatches)} couleur(s) depuis {os.path.basename(path)}")
+
+    def _save_palette(self):
+        if self.color_palette is None:
+            messagebox.showinfo("AutoSketch AI", "Aucune palette calibree ou chargee pour le moment.",
+                                 parent=self.root)
+            return
+        path = filedialog.asksaveasfilename(
+            title="Enregistrer la palette", defaultextension=".json",
+            filetypes=[("Palette JSON", "*.json")], parent=self.root)
+        if not path:
+            return
+        save_palette(self.color_palette, path)
+        self.log(f"Palette enregistree dans {os.path.basename(path)}")
 
     def ask_text(self, prompt, initial=""):
         result = queue.Queue()
@@ -380,8 +431,10 @@ class App:
         end = capture_points(1)[0]
         self.log("Dessin dans 2 secondes... (ne touche pas la souris)")
         time.sleep(2)
-        draw_line(MouseController(), start, end, speed=self.get_speed())
-        self.log("Termine.")
+        if self._exit_event.is_set():
+            return self._finish_log()
+        draw_line(MouseController(), start, end, speed=self.get_speed(), exit_event=self._exit_event)
+        self._finish_log()
 
     def _run_rectangle(self):
         self.log("Clique sur le COIN HAUT-GAUCHE du rectangle...")
@@ -390,8 +443,10 @@ class App:
         bottom_right = capture_points(1)[0]
         self.log("Dessin dans 2 secondes... (ne touche pas la souris)")
         time.sleep(2)
-        draw_rectangle(MouseController(), top_left, bottom_right, speed=self.get_speed())
-        self.log("Termine.")
+        if self._exit_event.is_set():
+            return self._finish_log()
+        draw_rectangle(MouseController(), top_left, bottom_right, speed=self.get_speed(), exit_event=self._exit_event)
+        self._finish_log()
 
     def _run_circle(self):
         self.log("Clique sur le CENTRE du cercle...")
@@ -402,8 +457,10 @@ class App:
         self.log(f"Rayon : {radius}")
         self.log("Dessin dans 2 secondes... (ne touche pas la souris)")
         time.sleep(2)
-        draw_circle(MouseController(), center, radius, speed=self.get_speed())
-        self.log("Termine.")
+        if self._exit_event.is_set():
+            return self._finish_log()
+        draw_circle(MouseController(), center, radius, speed=self.get_speed(), exit_event=self._exit_event)
+        self._finish_log()
 
     def _run_ellipse(self):
         self.log("Clique sur le COIN HAUT-GAUCHE de la boite englobante de l'ellipse...")
@@ -412,8 +469,10 @@ class App:
         bottom_right = capture_points(1)[0]
         self.log("Dessin dans 2 secondes... (ne touche pas la souris)")
         time.sleep(2)
-        draw_ellipse(MouseController(), top_left, bottom_right, speed=self.get_speed())
-        self.log("Termine.")
+        if self._exit_event.is_set():
+            return self._finish_log()
+        draw_ellipse(MouseController(), top_left, bottom_right, speed=self.get_speed(), exit_event=self._exit_event)
+        self._finish_log()
 
     def _run_polyline(self):
         self.log("Clique sur chaque point de la forme libre, puis appuie sur ENTREE pour terminer.")
@@ -424,8 +483,10 @@ class App:
         closed = self.ask_yesno("Fermer la forme (revenir au premier point) ?")
         self.log(f"{len(points)} point(s) captures. Dessin dans 2 secondes...")
         time.sleep(2)
-        draw_polyline(MouseController(), points, closed=closed, speed=self.get_speed())
-        self.log("Termine.")
+        if self._exit_event.is_set():
+            return self._finish_log()
+        draw_polyline(MouseController(), points, closed=closed, speed=self.get_speed(), exit_event=self._exit_event)
+        self._finish_log()
 
     # -- actions : image --
 
@@ -484,10 +545,12 @@ class App:
         time.sleep(3)
 
         for path_points in paths:
+            if self._exit_event.is_set():
+                break
             screen_points = map_points(path_points, image.shape, zone_top_left, zone_bottom_right)
-            draw_path_with_speed(mouse, screen_points, speed=speed)
+            draw_path_with_speed(mouse, screen_points, speed=speed, exit_event=self._exit_event)
 
-        self.log("Termine.")
+        self._finish_log()
 
     def _run_reproduce_color_image(self):
         image = self._ensure_image()
@@ -495,8 +558,13 @@ class App:
             self.log("Annule.")
             return
 
-        k = self.get_color_count()
-        quantized, centers = quantize_colors(image, k=k)
+        palette = self._maybe_calibrate_palette(self.get_color_count())
+        if palette is not None:
+            quantized, centers = quantize_to_palette(image, palette.colors_rgb(), dither=self.dither_var.get())
+            self.log(f"Quantification sur la palette chargee ({len(centers)} couleur(s)), "
+                     f"dither={'oui' if self.dither_var.get() else 'non'}")
+        else:
+            quantized, centers = quantize_colors(image, k=self.get_color_count())
         masks = color_masks(quantized, centers)
         skip_background = self.skip_background_var.get()
 
@@ -521,20 +589,23 @@ class App:
             self.log("Aucune zone exploitable dans cette image.")
             return
 
-        palette = self._maybe_calibrate_palette(len(color_paths))
         zone_top_left, zone_bottom_right = self._calibrate_zone()
 
         mouse = MouseController()
         speed = self.get_speed()
         for color_bgr, paths in color_paths:
+            if self._exit_event.is_set():
+                break
             b, g, r = color_bgr
             target_rgb = (r, g, b)
             self._apply_color_for_group(mouse, palette, target_rgb, f"{len(paths)} trait(s)")
             for path_points in paths:
+                if self._exit_event.is_set():
+                    break
                 screen_points = map_points(path_points, image.shape, zone_top_left, zone_bottom_right)
-                draw_path_with_speed(mouse, screen_points, speed=speed)
+                draw_path_with_speed(mouse, screen_points, speed=speed, exit_event=self._exit_event)
 
-        self.log("Termine.")
+        self._finish_log()
 
     def _run_pixel_grid(self):
         image = self._ensure_image()
@@ -546,19 +617,19 @@ class App:
         grid = image_to_grid(image, cols)
         self.show_preview(grid)
 
-        k = self.get_color_count()
-        quantized_grid, _ = quantize_colors(grid, k=k)
+        palette = self._maybe_calibrate_palette(self.get_color_count())
+        if palette is not None:
+            quantized_grid, _ = quantize_to_palette(grid, palette.colors_rgb(), dither=self.dither_var.get())
+        else:
+            quantized_grid, _ = quantize_colors(grid, k=self.get_color_count())
         rows, cols = quantized_grid.shape[:2]
 
-        groups = {}
-        for row in range(rows):
-            for col in range(cols):
-                color_bgr = tuple(int(c) for c in quantized_grid[row, col])
-                groups.setdefault(color_bgr, []).append((row, col))
+        color_runs = extract_color_runs(quantized_grid)
+        nb_cells = rows * cols
+        nb_runs = sum(len(runs) for runs in color_runs.values())
+        self.log(f"Grille {cols}x{rows} ({nb_cells} cellule(s)), {len(color_runs)} couleur(s), "
+                 f"{nb_runs} trait(s) apres fusion des cellules adjacentes")
 
-        self.log(f"Grille {cols}x{rows} ({rows * cols} cellule(s)), {len(groups)} couleur(s)")
-
-        palette = self._maybe_calibrate_palette(len(groups))
         zone_top_left, zone_bottom_right = self._calibrate_zone()
         zx1, zy1 = zone_top_left
         zx2, zy2 = zone_bottom_right
@@ -568,32 +639,42 @@ class App:
 
         mouse = MouseController()
         speed = self.get_speed()
-        for color_bgr, cells in groups.items():
+        for color_bgr, runs in color_runs.items():
+            if self._exit_event.is_set():
+                break
             b, g, r = color_bgr
             target_rgb = (r, g, b)
 
             fill_paths = []
-            for row, col in cells:
-                x1 = zx1 + col * cell_w
-                y1 = zy1 + row * cell_h
-                fill_paths.append([(x1, y1), (x1 + cell_w, y1), (x1 + cell_w, y1 + cell_h), (x1, y1 + cell_h)])
+            for row_start, col_start, row_end, col_end in runs:
+                x1 = zx1 + col_start * cell_w
+                y1 = zy1 + row_start * cell_h
+                x2 = zx1 + (col_end + 1) * cell_w
+                y2 = zy1 + (row_end + 1) * cell_h
+                fill_paths.append([(x1, y1), (x2, y1), (x2, y2), (x1, y2)])
             fill_paths = refine_with_two_opt(optimize_path_order(fill_paths))
 
-            self._apply_color_for_group(mouse, palette, target_rgb, f"{len(cells)} cellule(s)")
+            self._apply_color_for_group(mouse, palette, target_rgb, f"{len(runs)} trait(s)")
             for corners in fill_paths:
-                draw_filled_rect(mouse, corners[0], corners[2], lines=lines, speed=speed)
+                if self._exit_event.is_set():
+                    break
+                draw_filled_rect(mouse, corners[0], corners[2], lines=lines, speed=speed, exit_event=self._exit_event)
 
-        self.log("Termine.")
+        self._finish_log()
 
     # -- helpers : couleur/palette --
 
     def _maybe_calibrate_palette(self, default_count):
+        if self.color_palette is not None:
+            if self.ask_yesno(f"Reutiliser la palette chargee ({len(self.color_palette.swatches)} couleur(s)) ?"):
+                return self.color_palette
         if not self.ask_yesno("Calibrer une palette pour la selection automatique de couleur ?"):
             return None
         self.log("Clique successivement sur chaque couleur visible dans la palette de ton logiciel.")
         n_input = self.ask_text("Combien de couleurs dans la palette", initial=str(default_count))
         n_swatches = max(int(n_input), 1) if n_input and n_input.strip() else default_count
-        return calibrate_palette(n_swatches)
+        self.color_palette = calibrate_palette(n_swatches)
+        return self.color_palette
 
     def _apply_color_for_group(self, mouse, palette, target_rgb, count_label):
         if palette is not None:
@@ -615,6 +696,7 @@ class App:
     def _run_learning_mode(self):
         self.log("Dessine librement dans ton logiciel. Appuie sur ECHAP pour arreter l'enregistrement.")
         strokes = record_drawing()
+        self._exit_event.clear()  # l'ECHAP ci-dessus arrete l'enregistrement, pas la reproduction qui suit
         if not strokes:
             self.log("Aucun trait enregistre.")
             return
@@ -641,9 +723,11 @@ class App:
         mouse = MouseController()
         self.log("Dessin dans 3 secondes... (ne touche pas la souris)")
         time.sleep(3)
+        if self._exit_event.is_set():
+            return self._finish_log()
         screen_paths = [map_points(p, image.shape, zone_top_left, zone_bottom_right) for p in paths]
-        apply_style(mouse, screen_paths, style)
-        self.log("Termine.")
+        apply_style(mouse, screen_paths, style, exit_event=self._exit_event)
+        self._finish_log()
 
 
 def run():

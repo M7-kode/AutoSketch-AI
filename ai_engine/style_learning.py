@@ -77,10 +77,12 @@ def extract_style(strokes, default_speed=300.0, default_pause=0.3, max_pause=3.0
     }
 
 
-def apply_style(mouse_controller, paths, style):
+def apply_style(mouse_controller, paths, style, exit_event=None):
     speed = style.get("speed", 300.0)
     pause = style.get("avg_pause", 0.3)
     for i, path_points in enumerate(paths):
+        if exit_event is not None and exit_event.is_set():
+            break
         if i > 0 and pause > 0:
             time.sleep(pause)
-        draw_path_with_speed(mouse_controller, path_points, speed)
+        draw_path_with_speed(mouse_controller, path_points, speed, exit_event=exit_event)

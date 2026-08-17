@@ -8,6 +8,10 @@ Application de bureau (Tkinter) qui reproduit des images en pilotant la souris d
 - **Import d'image** et **detection de contours** (OpenCV).
 - **Reproduction d'image** en noir et blanc, en couleur (segmentation par palette de couleurs), ou par matrice de pixels.
 - **Optimisation de trajectoire** pour minimiser la distance parcourue par la souris (algorithme glouton puis raffinement 2-opt).
+- **Fusion des cellules adjacentes** (matrice de pixels) en un minimum de traits, en choisissant le sens de balayage (lignes ou colonnes) le plus efficace.
+- **Palettes de couleurs sauvegardables** : calibre une fois la position et la couleur de chaque swatch, puis enregistre/recharge cette palette (Fichier > Charger/Enregistrer une palette) pour ne plus jamais la recalibrer.
+- **Quantification sur la palette reelle** (avec dithering optionnel) quand une palette est chargee ou calibree, pour que chaque couleur reproduite corresponde exactement a un swatch disponible.
+- **Interruption immediate** d'un dessin en cours avec la touche ECHAP.
 - **Mode d'apprentissage** : enregistre ton propre style de trait (vitesse, pauses) et l'applique a la reproduction.
 
 ## Prerequis

@@ -1,5 +1,32 @@
 import cv2
 import numpy as np
+from PIL import Image
+
+
+def quantize_to_palette(image, palette_colors_rgb, dither=False):
+    """Quantifie l'image (BGR) sur un jeu de couleurs fixe (RGB), comme DrawBot :
+    chaque pixel produit correspond exactement a une couleur disponible dans la palette."""
+    if not palette_colors_rgb:
+        raise ValueError("La palette est vide.")
+
+    rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    pil_image = Image.fromarray(rgb_image)
+
+    flat_colors = []
+    for r, g, b in palette_colors_rgb:
+        flat_colors.extend([r, g, b])
+    flat_colors.extend([0] * (768 - len(flat_colors)))
+
+    palette_image = Image.new("P", (16, 16))
+    palette_image.putpalette(flat_colors)
+
+    dither_mode = Image.FLOYDSTEINBERG if dither else Image.NONE
+    quantized_pil = pil_image.quantize(palette=palette_image, dither=dither_mode).convert("RGB")
+
+    quantized_rgb = np.array(quantized_pil)
+    quantized_bgr = cv2.cvtColor(quantized_rgb, cv2.COLOR_RGB2BGR)
+    centers = [(b, g, r) for r, g, b in palette_colors_rgb]
+    return quantized_bgr, centers
 
 
 def quantize_colors(image, k=6):
