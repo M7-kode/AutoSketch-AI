@@ -5,6 +5,7 @@ venv/
 .venv/
 env/
 .claude/
+.pytest_cache/
 *.log
 .DS_Store
 presets/

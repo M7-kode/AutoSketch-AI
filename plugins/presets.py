@@ -1,3 +1,10 @@
+"""Calibrations enregistrees par site.
+
+La position de la zone de dessin et des couleurs depend de ton ecran, de ton
+zoom et de la position de ta fenetre : rien n'est codable en dur, on enregistre
+donc ce que tu as calibre chez toi.
+"""
+
 import json
 import os
 
@@ -5,15 +12,14 @@ from plugins.palette import ColorPalette
 
 PRESETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "presets")
 
-# (libelle affiche, nom de fichier) -- la calibration (couleurs + zone de dessin) est
-# propre a l'ecran de chaque utilisateur, donc enregistree localement plutot que
-# codee en dur : on ne peut pas deviner la resolution/le zoom de ton navigateur.
 SITE_PRESETS = [
     ("Skribbl.io", "skribbl"),
     ("Gartic Phone", "gartic_phone"),
     ("Paint", "paint"),
-    ("Personnalise", "custom"),
+    ("Autre", "autre"),
 ]
+
+SITE_NAMES = [label for label, _ in SITE_PRESETS]
 
 
 def preset_path(site_name):
@@ -27,17 +33,20 @@ def has_preset(site_name):
     return os.path.exists(preset_path(site_name))
 
 
-def save_site_preset(site_name, palette, zone_top_left, zone_bottom_right):
-    os.makedirs(PRESETS_DIR, exist_ok=True)
+def save_site_preset(site_name, palette, zone):
+    path = preset_path(site_name)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     data = {
-        "palette": [{"position": list(position), "color": list(color)} for position, color in palette.swatches],
-        "zone": [list(zone_top_left), list(zone_bottom_right)],
+        "palette": [{"position": list(position), "color": list(color)}
+                    for position, color in palette.swatches],
+        "zone": [list(zone[0]), list(zone[1])],
     }
-    with open(preset_path(site_name), "w", encoding="utf-8") as f:
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
 
 def load_site_preset(site_name):
+    """Retourne (palette, zone) ou None si le site n'a jamais ete calibre."""
     path = preset_path(site_name)
     if not os.path.exists(path):
         return None
@@ -50,6 +59,6 @@ def load_site_preset(site_name):
         palette.add_swatch(tuple(entry["position"]), tuple(entry["color"]))
 
     zone = data.get("zone")
-    zone_top_left = tuple(zone[0]) if zone else None
-    zone_bottom_right = tuple(zone[1]) if zone else None
-    return palette, zone_top_left, zone_bottom_right
+    if not zone:
+        return None
+    return palette, (tuple(zone[0]), tuple(zone[1]))

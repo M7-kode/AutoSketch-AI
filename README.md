@@ -1,24 +1,37 @@
 # AutoSketch AI
 
-Application de bureau (Tkinter) qui reproduit des images en pilotant la souris dans un logiciel de dessin : vision par ordinateur pour extraire les contours et les couleurs, optimisation de trajectoires (glouton + 2-opt), et un mode d'apprentissage de style de trait.
+Application de bureau qui dessine une image trouvee sur internet dans **Skribbl.io**, **Gartic Phone** ou **Paint**, en pilotant ta souris.
 
-## Fonctionnalites
+Contrairement aux bots qui codent en dur des positions d'ecran, la calibration se fait chez toi : elle s'adapte donc a ta resolution, ton zoom et la position de ta fenetre. Tu ne la fais qu'une fois par site.
 
-- **Formes de base** : ligne, rectangle, cercle, ellipse, polyligne libre.
-- **Import d'image** et **detection de contours** (OpenCV).
-- **Reproduction d'image** en noir et blanc, en couleur (segmentation par palette de couleurs), ou par matrice de pixels.
-- **Optimisation de trajectoire** pour minimiser la distance parcourue par la souris (algorithme glouton puis raffinement 2-opt).
-- **Fusion des cellules adjacentes** (matrice de pixels) en un minimum de traits, en choisissant le sens de balayage (lignes ou colonnes) le plus efficace.
-- **Palettes de couleurs sauvegardables** : calibre une fois la position et la couleur de chaque swatch, puis enregistre/recharge cette palette (Fichier > Charger/Enregistrer une palette) pour ne plus jamais la recalibrer.
-- **Quantification sur la palette reelle** (avec dithering optionnel) quand une palette est chargee ou calibree, pour que chaque couleur reproduite corresponde exactement a un swatch disponible.
-- **Interruption immediate** d'un dessin en cours avec la touche ECHAP.
-- **Mode d'apprentissage** : enregistre ton propre style de trait (vitesse, pauses) et l'applique a la reproduction.
-- **Dessiner sur un site (Skribbl.io, Gartic Phone, Paint...)** : importe une image depuis une URL, calibre une fois la zone de dessin et la palette du site choisi, puis reutilise cette calibration en un clic ("Dessiner sur ce site") a chaque partie. Contrairement a des outils qui codent en dur des positions d'ecran, la calibration se fait chez toi et s'adapte donc a ta resolution, ton zoom et la position de ta fenetre.
+## Comment ca marche
 
-## Prerequis
+L'interface tient en trois etapes et un bouton.
 
-- Python 3.10+
-- Windows (utilise `pyautogui` / `pynput` pour piloter la souris)
+1. **Quelle image ?** Colle l'adresse d'une image trouvee sur internet (ou choisis un fichier).
+2. **Ou dessiner ?** Choisis le site, puis clique sur **Calibrer** une seule fois :
+   - clique le coin haut-gauche puis le coin bas-droite de la zone de dessin,
+   - clique chaque couleur de la palette du site, puis appuie sur **ENTREE**.
+
+   C'est enregistre : tu n'auras plus jamais a le refaire pour ce site.
+3. **Comment dessiner ?** Choisis un rendu, regle la vitesse et le detail.
+
+Puis clique sur **DESSINER**. **ECHAP arrete tout a n'importe quel moment.**
+
+### Les trois rendus
+
+| Rendu | Ce qu'il fait | Quand l'utiliser |
+| --- | --- | --- |
+| **Couleur** | Un groupe de contours par couleur de la palette | Le meilleur compromis par defaut |
+| **Contours** | Trace uniquement les contours, sans changer de couleur | Rapide, style croquis |
+| **Pixels** | Remplit une grille de cellules, en fusionnant les cellules voisines de meme couleur | Aplats et images simples |
+
+## Ce qui rend le trace efficace
+
+- **Fusion des cellules voisines** : en mode Pixels, les cellules adjacentes de meme couleur deviennent un seul trait, et le sens de balayage (lignes ou colonnes) est choisi automatiquement pour minimiser le nombre de traits.
+- **Optimisation du parcours** : l'ordre des traits est optimise (glouton puis raffinement 2-opt) pour reduire la distance parcourue a vide par la souris.
+- **Quantification sur ta palette reelle** : chaque couleur dessinee correspond exactement a une couleur cliquable du site, avec dithering optionnel.
+- **Le bouton n'est jamais laisse enfonce**, meme en cas d'interruption ou d'erreur.
 
 ## Installation
 
@@ -26,37 +39,34 @@ Application de bureau (Tkinter) qui reproduit des images en pilotant la souris d
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
-```
-
-## Utilisation
-
-```bash
 python main.py
 ```
 
-Ouvre ton logiciel de dessin avant de lancer une action, puis suis les instructions affichees dans l'interface (calibration de la zone de dessin, clics de reference, etc.).
+Prerequis : Python 3.10+ sur Windows (`pyautogui` / `pynput` pilotent la souris).
 
-### Dessiner sur un site (panneau "Dessiner sur un site")
+## Tests
 
-1. Choisis le site dans la liste (Skribbl.io, Gartic Phone, Paint, ou Personnalise).
-2. Ouvre ce site/logiciel, positionne sa fenetre comme tu le feras a chaque partie.
-3. Clique sur **Calibrer ce site** : clique sur les 2 coins de la zone de dessin, puis sur chaque couleur de la palette du site quand on te le demande. C'est enregistre localement dans `presets/` (ignore par git, propre a ta machine).
-4. Colle une URL d'image dans le champ prevu, puis clique sur **Dessiner sur ce site** (charge l'image si besoin et lance directement la reproduction, sans re-demander la calibration).
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
 
-La calibration reste disponible pour le reste de la session et est rechargee automatiquement la prochaine fois que tu relances l'app.
+La logique de dessin est separee de l'interface : un **plan** (quoi tracer, dans le repere de l'image) se construit sans jamais toucher la souris, et un **executeur** l'applique a l'ecran. C'est ce qui rend l'essentiel du projet testable sans bouger le curseur ni ouvrir de fenetre.
 
-## Structure du projet
+## Structure
 
 ```
-ai_engine/        apprentissage de style, optimisation de trajectoire (2-opt)
-automation/       pilotage bas niveau de la souris
-core/             calibration des coordonnees ecran <-> image
-drawing_engine/   construction et optimisation des chemins a tracer
-interface/        interface graphique (Tkinter)
-plugins/          calibration et selection de palette de couleurs
-vision/           chargement d'image, segmentation couleur, detection de contours
+core/       plan (quoi tracer), executor (l'appliquer), calibration, settings
+vision/     chargement d'image (fichier/URL), couleurs, contours, grille
+drawing_engine/  traces, fusion des cellules, optimisation du parcours
+ai_engine/  raffinement 2-opt du parcours
+plugins/    palette de couleurs, calibrations par site
+interface/  interface graphique (Tkinter)
+tests/      suite de tests
 ```
+
+Les calibrations sont enregistrees dans `presets/`, propre a ta machine et non versionne.
 
 ## Avertissement
 
-Cet outil automatise des clics et deplacements de souris. Utilise-le de maniere responsable et conformement aux conditions d'utilisation des logiciels avec lesquels tu l'utilises.
+Cet outil automatise des clics et deplacements de souris. Utilise-le de maniere responsable et conformement aux conditions d'utilisation des sites et logiciels concernes.

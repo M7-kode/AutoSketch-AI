@@ -33,7 +33,9 @@ def capture_points_until_enter():
             points.append((x, y))
 
     def on_key_press(key):
-        if key == keyboard.Key.enter:
+        # ECHAP libere aussi l'attente, sinon annuler une calibration bloquerait
+        # le thread sur un ENTREE qui ne viendra jamais.
+        if key in (keyboard.Key.enter, keyboard.Key.esc):
             return False
 
     with mouse.Listener(on_click=on_click) as mouse_listener:
