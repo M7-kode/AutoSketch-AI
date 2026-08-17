@@ -13,6 +13,7 @@ Application de bureau (Tkinter) qui reproduit des images en pilotant la souris d
 - **Quantification sur la palette reelle** (avec dithering optionnel) quand une palette est chargee ou calibree, pour que chaque couleur reproduite corresponde exactement a un swatch disponible.
 - **Interruption immediate** d'un dessin en cours avec la touche ECHAP.
 - **Mode d'apprentissage** : enregistre ton propre style de trait (vitesse, pauses) et l'applique a la reproduction.
+- **Dessiner sur un site (Skribbl.io, Gartic Phone, Paint...)** : importe une image depuis une URL, calibre une fois la zone de dessin et la palette du site choisi, puis reutilise cette calibration en un clic ("Dessiner sur ce site") a chaque partie. Contrairement a des outils qui codent en dur des positions d'ecran, la calibration se fait chez toi et s'adapte donc a ta resolution, ton zoom et la position de ta fenetre.
 
 ## Prerequis
 
@@ -34,6 +35,15 @@ python main.py
 ```
 
 Ouvre ton logiciel de dessin avant de lancer une action, puis suis les instructions affichees dans l'interface (calibration de la zone de dessin, clics de reference, etc.).
+
+### Dessiner sur un site (panneau "Dessiner sur un site")
+
+1. Choisis le site dans la liste (Skribbl.io, Gartic Phone, Paint, ou Personnalise).
+2. Ouvre ce site/logiciel, positionne sa fenetre comme tu le feras a chaque partie.
+3. Clique sur **Calibrer ce site** : clique sur les 2 coins de la zone de dessin, puis sur chaque couleur de la palette du site quand on te le demande. C'est enregistre localement dans `presets/` (ignore par git, propre a ta machine).
+4. Colle une URL d'image dans le champ prevu, puis clique sur **Dessiner sur ce site** (charge l'image si besoin et lance directement la reproduction, sans re-demander la calibration).
+
+La calibration reste disponible pour le reste de la session et est rechargee automatiquement la prochaine fois que tu relances l'app.
 
 ## Structure du projet
 

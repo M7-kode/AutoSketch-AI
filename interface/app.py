@@ -27,6 +27,7 @@ from drawing_engine.shapes import (
     draw_rectangle,
 )
 from plugins.palette import calibrate_palette, load_palette, save_palette, select_color
+from plugins.presets import SITE_PRESETS, load_site_preset, save_site_preset
 from vision.color_segmentation import color_masks, quantize_colors, quantize_to_palette
 from vision.contour_detection import (
     detect_edges,
@@ -34,7 +35,7 @@ from vision.contour_detection import (
     find_contours_from_mask,
     is_background_like,
 )
-from vision.image_loader import get_image_info, load_image
+from vision.image_loader import get_image_info, load_image, load_image_from_url
 from vision.pixel_grid import image_to_grid
 
 IMAGE_FILETYPES = [("Images", "*.png *.jpg *.jpeg *.bmp"), ("Tous les fichiers", "*.*")]
@@ -56,6 +57,7 @@ class App:
         self.current_image = None
         self.current_image_name = None
         self.color_palette = None
+        self.zone = None
         self._exit_event = threading.Event()
 
         root.title("AutoSketch AI")
@@ -172,6 +174,31 @@ class App:
                 button = ttk.Button(frame, text=label, width=26, command=lambda a=action: self._start(a))
                 button.pack(fill="x", pady=2)
                 self.buttons.append(button)
+
+        self._build_site_panel(parent)
+
+    def _build_site_panel(self, parent):
+        frame = ttk.Labelframe(parent, text="Dessiner sur un site", padding=8)
+        frame.pack(fill="x", pady=(0, 10))
+
+        self.site_var = tk.StringVar(value=SITE_PRESETS[0][0])
+        site_box = ttk.Combobox(frame, textvariable=self.site_var, state="readonly", width=24,
+                                 values=[label for label, _ in SITE_PRESETS])
+        site_box.pack(fill="x", pady=2)
+
+        ttk.Label(frame, text="URL de l'image a dessiner", style="Sub.TLabel").pack(anchor="w", pady=(6, 0))
+        self.site_url_var = tk.StringVar()
+        ttk.Entry(frame, textvariable=self.site_url_var).pack(fill="x", pady=2)
+
+        site_actions = [
+            ("Importer l'image (URL)", self._run_import_url),
+            ("Calibrer ce site", self._run_calibrate_site),
+            ("Dessiner sur ce site", self._run_site_draw),
+        ]
+        for label, action in site_actions:
+            button = ttk.Button(frame, text=label, width=26, command=lambda a=action: self._start(a))
+            button.pack(fill="x", pady=(6, 0))
+            self.buttons.append(button)
 
     def _build_main_panel(self, parent):
         top = ttk.Frame(parent)
@@ -404,7 +431,7 @@ class App:
 
     # -- helpers communs --
 
-    def _calibrate_zone(self):
+    def _capture_zone_clicks(self):
         self.log("Clique sur le COIN HAUT-GAUCHE de la zone de dessin...")
         zone_top_left = capture_points(1)[0]
         self.log("Clique sur le COIN BAS-DROITE de la zone de dessin...")
@@ -414,6 +441,14 @@ class App:
             raise ValueError("La zone de dessin est degeneree (les deux coins cliques sont alignes).")
 
         return zone_top_left, zone_bottom_right
+
+    def _calibrate_zone(self):
+        if self.zone is not None:
+            if self.ask_yesno("Reutiliser la zone de dessin deja definie ?"):
+                return self.zone
+        zone = self._capture_zone_clicks()
+        self.zone = zone
+        return zone
 
     def _build_drawable_paths(self, contours):
         epsilon_ratio = self.get_epsilon_ratio()
@@ -552,13 +587,16 @@ class App:
 
         self._finish_log()
 
-    def _run_reproduce_color_image(self):
+    def _run_reproduce_color_image(self, palette=None, zone=None):
         image = self._ensure_image()
         if image is None:
             self.log("Annule.")
             return
 
-        palette = self._maybe_calibrate_palette(self.get_color_count())
+        if palette is None:
+            palette = self._maybe_calibrate_palette(self.get_color_count())
+        else:
+            self.color_palette = palette
         if palette is not None:
             quantized, centers = quantize_to_palette(image, palette.colors_rgb(), dither=self.dither_var.get())
             self.log(f"Quantification sur la palette chargee ({len(centers)} couleur(s)), "
@@ -589,7 +627,11 @@ class App:
             self.log("Aucune zone exploitable dans cette image.")
             return
 
-        zone_top_left, zone_bottom_right = self._calibrate_zone()
+        if zone is None:
+            zone_top_left, zone_bottom_right = self._calibrate_zone()
+        else:
+            zone_top_left, zone_bottom_right = zone
+            self.zone = zone
 
         mouse = MouseController()
         speed = self.get_speed()
@@ -662,6 +704,66 @@ class App:
 
         self._finish_log()
 
+    # -- actions : site (clone DrawBot) --
+
+    def _run_import_url(self):
+        url = self.site_url_var.get().strip()
+        if not url:
+            self.log("Renseigne une URL d'image avant d'importer.")
+            return
+        try:
+            image = load_image_from_url(url)
+        except Exception as e:
+            self.log(f"Impossible de charger l'image depuis cette URL : {e}")
+            return
+        self._set_current_image(image, url)
+        info = get_image_info(image)
+        self.log(f"Image chargee depuis l'URL : {info['width']}x{info['height']} px "
+                 f"(reutilisee pour les prochaines actions)")
+
+    def _run_calibrate_site(self):
+        site_name = self.site_var.get()
+        self.log(f"Calibration de '{site_name}'. Ouvre-le et positionne-le avant de cliquer.")
+        zone_top_left, zone_bottom_right = self._capture_zone_clicks()
+
+        n_input = self.ask_text(f"Combien de couleurs dans la palette de {site_name} ?", initial="8")
+        n_swatches = max(int(n_input), 1) if n_input and n_input.strip() else 8
+        self.log("Clique successivement sur chaque couleur visible dans la palette du site.")
+        palette = calibrate_palette(n_swatches, on_step=self._log_palette_step)
+
+        save_site_preset(site_name, palette, zone_top_left, zone_bottom_right)
+        self.color_palette = palette
+        self.zone = (zone_top_left, zone_bottom_right)
+        self.log(f"Calibration de '{site_name}' enregistree ({len(palette.swatches)} couleur(s)). "
+                 f"Reutilisable directement avec 'Dessiner sur ce site'.")
+
+    def _run_site_draw(self):
+        site_name = self.site_var.get()
+        preset = load_site_preset(site_name)
+        if preset is None:
+            self.log(f"Aucune calibration enregistree pour '{site_name}'. Utilise 'Calibrer ce site' d'abord.")
+            return
+
+        palette, zone_top_left, zone_bottom_right = preset
+        if not palette.swatches or zone_top_left is None:
+            self.log(f"Calibration de '{site_name}' incomplete. Recalibre-le.")
+            return
+        self.log(f"Calibration de '{site_name}' chargee ({len(palette.swatches)} couleur(s)).")
+
+        if self.current_image is None:
+            url = self.site_url_var.get().strip()
+            if not url:
+                self.log("Charge une image (URL ou fichier) avant de dessiner.")
+                return
+            try:
+                image = load_image_from_url(url)
+            except Exception as e:
+                self.log(f"Impossible de charger l'image depuis cette URL : {e}")
+                return
+            self._set_current_image(image, url)
+
+        self._run_reproduce_color_image(palette=palette, zone=(zone_top_left, zone_bottom_right))
+
     # -- helpers : couleur/palette --
 
     def _maybe_calibrate_palette(self, default_count):
@@ -670,11 +772,13 @@ class App:
                 return self.color_palette
         if not self.ask_yesno("Calibrer une palette pour la selection automatique de couleur ?"):
             return None
-        self.log("Clique successivement sur chaque couleur visible dans la palette de ton logiciel.")
         n_input = self.ask_text("Combien de couleurs dans la palette", initial=str(default_count))
         n_swatches = max(int(n_input), 1) if n_input and n_input.strip() else default_count
-        self.color_palette = calibrate_palette(n_swatches)
+        self.color_palette = calibrate_palette(n_swatches, on_step=self._log_palette_step)
         return self.color_palette
+
+    def _log_palette_step(self, index, total):
+        self.log(f"Clique sur la couleur {index + 1}/{total} de la palette...")
 
     def _apply_color_for_group(self, mouse, palette, target_rgb, count_label):
         if palette is not None:

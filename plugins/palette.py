@@ -50,14 +50,14 @@ def sample_color_at(position):
     return tuple(pixel[:3])
 
 
-def calibrate_palette(n_swatches):
+def calibrate_palette(n_swatches, on_step=None):
     palette = ColorPalette()
     for i in range(n_swatches):
-        input(f"Clique sur la couleur {i + 1}/{n_swatches} de la palette, puis appuie sur Entree...")
+        if on_step is not None:
+            on_step(i, n_swatches)
         position = capture_points(1)[0]
         color = sample_color_at(position)
         palette.add_swatch(position, color)
-        print(f"  -> position {position}, couleur echantillonnee RGB{color}")
     return palette
 
 

@@ -7,3 +7,4 @@ env/
 .claude/
 *.log
 .DS_Store
+presets/

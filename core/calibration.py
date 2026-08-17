@@ -1,7 +1,15 @@
+import time
+
 from pynput import keyboard, mouse
+
+# Laisse le temps au clic qui a declenche l'action courante (bouton, boite de
+# dialogue) de se dissiper avant d'ecouter, sinon ce meme clic est capture
+# comme point de calibration et la zone/palette obtenue est incoherente.
+CLICK_SETTLE_DELAY = 0.4
 
 
 def capture_points(n):
+    time.sleep(CLICK_SETTLE_DELAY)
     points = []
 
     def on_click(x, y, button, pressed):
@@ -17,6 +25,7 @@ def capture_points(n):
 
 
 def capture_points_until_enter():
+    time.sleep(CLICK_SETTLE_DELAY)
     points = []
 
     def on_click(x, y, button, pressed):
