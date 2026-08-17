@@ -11,4 +11,4 @@ env/
 presets/
 build/
 dist/
-*.spec
+# AutoSketch.spec est versionne : c'est la recette de construction

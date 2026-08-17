@@ -1,12 +1,12 @@
 """Construit AutoSketch pour Windows : ni Python ni dependances chez celui qui le recoit.
 
     pip install -r requirements-dev.txt
-    python build.py              -> dist/AutoSketch/  (demarre vite, un dossier a zipper)
-    python build.py --un-fichier -> dist/AutoSketch.exe (un seul fichier, demarrage lent)
+    python build.py            -> dist/AutoSketch.exe  un seul fichier, deplacable partout
+    python build.py --dossier  -> dist/AutoSketch/     demarre plus vite, a garder groupe
 
-Le mode dossier est le defaut : le mode fichier unique doit redecompresser
-OpenCV et numpy a chaque lancement, ce qui coute une vingtaine de secondes
-d'attente avant que la fenetre apparaisse.
+Le fichier unique est le defaut parce qu'il fonctionne seul. En mode dossier,
+l'exe ne demarre pas sans le dossier _internal qui l'accompagne : il faut
+partager le dossier entier, jamais l'exe tout seul.
 """
 
 import os
@@ -15,10 +15,7 @@ import sys
 
 NAME = "AutoSketch"
 ROOT = os.path.dirname(os.path.abspath(__file__))
-
-# Ces paquets ne servent qu'au developpement : les exclure evite de les
-# embarquer dans le resultat.
-EXCLUDED = ["pytest", "_pytest", "pluggy", "PyInstaller"]
+SPEC = os.path.join(ROOT, f"{NAME}.spec")
 
 
 def folder_size_mb(path):
@@ -30,30 +27,23 @@ def folder_size_mb(path):
 
 
 def main():
-    single_file = "--un-fichier" in sys.argv
+    as_folder = "--dossier" in sys.argv
 
-    command = [
-        sys.executable, "-m", "PyInstaller",
-        "--noconfirm", "--clean",
-        "--onefile" if single_file else "--onedir",
-        "--windowed",
-        "--name", NAME,
-        "--icon", os.path.join("assets", "icon.ico"),
-    ]
-    for module in EXCLUDED:
-        command += ["--exclude-module", module]
-    command.append("main.py")
+    environment = dict(os.environ, AUTOSKETCH_DOSSIER="1" if as_folder else "0")
+    command = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", SPEC]
 
     print(" ".join(command))
-    subprocess.run(command, check=True, cwd=ROOT)
+    subprocess.run(command, check=True, cwd=ROOT, env=environment)
 
-    if single_file:
-        result = os.path.join(ROOT, "dist", f"{NAME}.exe")
-        size = os.path.getsize(result) / (1024 * 1024)
-    else:
+    if as_folder:
         result = os.path.join(ROOT, "dist", NAME)
         size = folder_size_mb(result)
-        print(f"\nA partager : zippe le dossier dist/{NAME}/ en entier.")
+        print(f"\nA partager : zippe le dossier dist/{NAME}/ EN ENTIER.")
+        print("L'exe seul ne demarre pas : il lui faut _internal a cote de lui.")
+    else:
+        result = os.path.join(ROOT, "dist", f"{NAME}.exe")
+        size = os.path.getsize(result) / (1024 * 1024)
+        print(f"\nA partager : le fichier dist/{NAME}.exe, tel quel.")
 
     print(f"\nOK : {result} ({size:.0f} Mo)")
 

@@ -12,9 +12,9 @@ La calibration se fait chez toi, en une fois : elle s'adapte a ta resolution, to
 
 ### Tu veux juste dessiner
 
-Recupere **AutoSketch** (voir [Construire l'executable](#construire-lexecutable) si tu pars des sources), puis lance `AutoSketch.exe`. Ni Python ni installation ne sont necessaires.
+Recupere `AutoSketch.exe` (voir [Construire l'executable](#construire-lexecutable) si tu pars des sources) et lance-le. C'est un fichier unique : tu peux le poser ou tu veux, il n'a besoin ni de Python, ni d'installation, ni d'aucun fichier a cote.
 
-> Le tout premier lancement prend une vingtaine de secondes : Windows analyse l'application. Les suivants demarrent en 1 a 2 secondes.
+> Compte une quinzaine de secondes avant que la fenetre apparaisse : l'application decompresse OpenCV a chaque lancement. Si tu la lances souvent, la version en dossier demarre en une seconde.
 
 ### Tu veux lire ou modifier le code
 
@@ -131,16 +131,20 @@ L'executable ne peut pas ecrire a cote de lui-meme : PyInstaller le decompresse 
 
 ```bash
 pip install -r requirements-dev.txt
-python build.py                # -> dist/AutoSketch/     (recommande)
-python build.py --un-fichier   # -> dist/AutoSketch.exe
+python build.py             # -> dist/AutoSketch.exe   un seul fichier (defaut)
+python build.py --dossier   # -> dist/AutoSketch/      demarre plus vite
 ```
 
-| Mode | Resultat | 1er lancement | Lancements suivants |
-| --- | --- | --- | --- |
-| **Dossier** (defaut) | un dossier de 178 Mo, a zipper pour le partager | ~18 s | **~1 s** |
-| **Fichier unique** | un seul `.exe` de 71 Mo | ~20 s | ~20 s |
+| Mode | Resultat | 1er lancement | Suivants | Deplacable seul |
+| --- | --- | --- | --- | --- |
+| **Fichier unique** (defaut) | un `.exe` de 58 Mo | ~21 s | ~16 s | **oui** |
+| **Dossier** | un dossier de 149 Mo | ~9 s | **~1 s** | non |
 
-Le fichier unique est plus simple a envoyer, mais il redecompresse OpenCV et numpy **a chaque lancement**. Le mode dossier ne paie l'attente qu'une fois, a la premiere ouverture.
+> **En mode dossier, ne sors jamais `AutoSketch.exe` de son dossier.** Il ne demarre pas sans le `_internal` qui l'accompagne, et affiche une erreur de chargement de DLL. Pour partager cette version, zippe le dossier **entier**.
+
+Le mode fichier unique est le defaut parce qu'il fonctionne seul, ou qu'on le mette. Il paie en revanche la decompression d'OpenCV a chaque lancement, la ou le mode dossier ne la paie jamais.
+
+La recette de construction est dans `AutoSketch.spec`. Elle ecarte notamment les codecs video d'OpenCV (~29 Mo), inutiles ici puisque l'application ne lit que des images fixes.
 
 L'icone est generee par `python assets/make_icon.py`.
 
