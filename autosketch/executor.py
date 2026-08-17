@@ -2,9 +2,9 @@
 
 import time
 
-from core.calibration import map_points
-from drawing_engine.shapes import draw_path_with_speed
-from plugins.palette import select_color
+from autosketch.screen.calibration import map_points
+from autosketch.drawing.strokes import draw_path_with_speed
+from autosketch.screen.palette import select_color
 
 
 def execute_plan(plan, mouse, zone, speed, palette=None, exit_event=None,

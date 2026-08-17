@@ -1,4 +1,4 @@
-from core.settings import clamp_detail, detail_to_epsilon_ratio, detail_to_grid_cols
+from autosketch.settings import clamp_detail, detail_to_epsilon_ratio, detail_to_grid_cols
 
 
 def test_clamp_detail_stays_within_bounds():

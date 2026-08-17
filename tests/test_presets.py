@@ -1,8 +1,8 @@
 import pytest
 
-from plugins import presets as presets_module
-from plugins.palette import ColorPalette
-from plugins.presets import (
+from autosketch.screen import presets as presets_module
+from autosketch.screen.palette import ColorPalette
+from autosketch.screen.presets import (
     SITE_NAMES,
     SITE_PRESETS,
     has_preset,

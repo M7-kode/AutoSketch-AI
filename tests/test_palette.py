@@ -1,8 +1,8 @@
 import pytest
 
 from conftest import FakeScreen
-from plugins import palette as palette_module
-from plugins.palette import (
+from autosketch.screen import palette as palette_module
+from autosketch.screen.palette import (
     ColorPalette,
     build_palette,
     load_palette,

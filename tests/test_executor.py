@@ -1,8 +1,8 @@
 import threading
 
-from core.executor import execute_plan
-from core.plan import DrawPlan
-from plugins.palette import ColorPalette
+from autosketch.drawing.plan import DrawPlan
+from autosketch.executor import execute_plan
+from autosketch.screen.palette import ColorPalette
 
 ZONE = ((100, 100), (200, 200))
 

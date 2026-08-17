@@ -2,8 +2,8 @@ import cv2
 import numpy as np
 import pytest
 
-from vision import image_loader
-from vision.image_loader import get_image_info, load_image, load_image_from_url
+from autosketch.vision import loader
+from autosketch.vision.loader import get_image_info, load_image, load_image_from_url
 
 
 class FakeResponse:
@@ -46,7 +46,7 @@ def test_an_image_file_is_loaded(tmp_path, sample_image):
 
 
 def test_an_image_url_is_decoded(monkeypatch, sample_image):
-    monkeypatch.setattr(image_loader.requests, "get",
+    monkeypatch.setattr(loader.requests, "get",
                         lambda url, timeout=None: FakeResponse(png_bytes(sample_image)))
 
     loaded = load_image_from_url("https://example.com/image.png")
@@ -55,7 +55,7 @@ def test_an_image_url_is_decoded(monkeypatch, sample_image):
 
 
 def test_a_page_that_is_not_an_image_is_rejected(monkeypatch):
-    monkeypatch.setattr(image_loader.requests, "get",
+    monkeypatch.setattr(loader.requests, "get",
                         lambda url, timeout=None: FakeResponse(b"<html>pas une image</html>"))
 
     with pytest.raises(ValueError):
@@ -63,7 +63,7 @@ def test_a_page_that_is_not_an_image_is_rejected(monkeypatch):
 
 
 def test_a_broken_link_is_reported(monkeypatch):
-    monkeypatch.setattr(image_loader.requests, "get",
+    monkeypatch.setattr(loader.requests, "get",
                         lambda url, timeout=None: FakeResponse(b"", status_code=404))
 
     with pytest.raises(RuntimeError):
@@ -78,7 +78,7 @@ def test_the_download_cannot_hang_forever(monkeypatch, sample_image):
         seen["timeout"] = timeout
         return FakeResponse(png_bytes(sample_image))
 
-    monkeypatch.setattr(image_loader.requests, "get", fake_get)
+    monkeypatch.setattr(loader.requests, "get", fake_get)
     load_image_from_url("https://example.com/image.png")
 
     assert seen["timeout"] is not None

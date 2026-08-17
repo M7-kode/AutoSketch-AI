@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from vision.color_segmentation import color_masks, quantize_colors, quantize_to_palette
+from autosketch.vision.colors import color_masks, quantize_colors, quantize_to_palette
 
 RED_BGR = (0, 0, 255)
 BLUE_BGR = (255, 0, 0)

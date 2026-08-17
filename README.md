@@ -55,14 +55,32 @@ La logique de dessin est separee de l'interface : un **plan** (quoi tracer, dans
 
 ## Structure
 
+Tout le code vit dans un seul package, decoupe selon les trois roles du programme : **lire l'image**, **decider quoi tracer**, **agir sur l'ecran**.
+
 ```
-core/       plan (quoi tracer), executor (l'appliquer), calibration, settings
-vision/     chargement d'image (fichier/URL), couleurs, contours, grille
-drawing_engine/  traces, fusion des cellules, optimisation du parcours
-ai_engine/  raffinement 2-opt du parcours
-plugins/    palette de couleurs, calibrations par site
-interface/  interface graphique (Tkinter)
-tests/      suite de tests
+main.py                point d'entree
+autosketch/
+  app.py               interface graphique (Tkinter)
+  executor.py          applique un plan a l'ecran
+  settings.py          curseur "Detail" -> reglages du moteur
+  vision/              lire l'image
+    loader.py            chargement (fichier ou URL)
+    colors.py            quantification et masques de couleur
+    contours.py          detection des contours
+    grid.py              reduction en grille de cellules
+  drawing/             decider quoi tracer
+    plan.py              construit le plan (sans toucher la souris)
+    paths.py             contours -> traces simplifies et lisses
+    routing.py           ordre de passage (glouton + 2-opt)
+    runs.py              fusion des cellules voisines de meme couleur
+    strokes.py           trace bas niveau et remplissage en zigzag
+  screen/              agir sur l'ecran
+    mouse.py             pilotage de la souris
+    calibration.py       capture de clics, image -> zone d'ecran
+    palette.py           couleurs cliquables du site
+    presets.py           calibrations enregistrees par site
+samples/               images d'exemple
+tests/                 suite de tests
 ```
 
 Les calibrations sont enregistrees dans `presets/`, propre a ta machine et non versionne.

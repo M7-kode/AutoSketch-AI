@@ -8,14 +8,14 @@ import cv2
 from PIL import Image, ImageTk
 from pynput import keyboard
 
-from automation.mouse_controller import MouseController
-from core.calibration import capture_points, capture_points_until_enter
-from core.executor import execute_plan
-from core.plan import build_color_plan, build_contour_plan, build_pixel_plan
-from core.settings import detail_to_epsilon_ratio, detail_to_grid_cols
-from plugins.palette import build_palette
-from plugins.presets import SITE_NAMES, load_site_preset, save_site_preset
-from vision.image_loader import get_image_info, load_image, load_image_from_url
+from autosketch.drawing.plan import build_color_plan, build_contour_plan, build_pixel_plan
+from autosketch.executor import execute_plan
+from autosketch.screen.calibration import capture_points, capture_points_until_enter
+from autosketch.screen.mouse import MouseController
+from autosketch.screen.palette import build_palette
+from autosketch.screen.presets import SITE_NAMES, load_site_preset, save_site_preset
+from autosketch.settings import detail_to_epsilon_ratio, detail_to_grid_cols
+from autosketch.vision.loader import get_image_info, load_image, load_image_from_url
 
 IMAGE_FILETYPES = [("Images", "*.png *.jpg *.jpeg *.bmp"), ("Tous les fichiers", "*.*")]
 PREVIEW_SIZE = (260, 260)

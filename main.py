@@ -1,4 +1,4 @@
-from interface.app import run
+from autosketch.app import run
 
 if __name__ == "__main__":
     run()

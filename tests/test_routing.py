@@ -1,5 +1,8 @@
-from ai_engine.trajectory_optimizer import refine_with_two_opt
-from drawing_engine.path_optimizer import optimize_path_order, total_travel_distance
+from autosketch.drawing.routing import (
+    optimize_path_order,
+    refine_with_two_opt,
+    total_travel_distance,
+)
 
 
 def test_travel_distance_of_a_single_path_is_zero():

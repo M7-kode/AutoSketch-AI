@@ -1,6 +1,6 @@
 import numpy as np
 
-from drawing_engine.grid_runs import extract_color_runs
+from autosketch.drawing.runs import extract_color_runs
 
 COLORS = {"a": (0, 0, 0), "b": (255, 255, 255), "c": (255, 0, 0)}
 

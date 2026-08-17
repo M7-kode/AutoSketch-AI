@@ -1,6 +1,6 @@
 import numpy as np
 
-from core.plan import DrawPlan, build_color_plan, build_contour_plan, build_pixel_plan
+from autosketch.drawing.plan import DrawPlan, build_color_plan, build_contour_plan, build_pixel_plan
 
 
 def all_points(plan):

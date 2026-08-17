@@ -1,4 +1,4 @@
-from core.calibration import map_points
+from autosketch.screen.calibration import map_points
 
 
 def test_image_corners_land_on_zone_corners():

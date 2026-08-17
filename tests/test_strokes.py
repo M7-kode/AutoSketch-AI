@@ -1,7 +1,7 @@
 import pytest
 
 from conftest import FakeMouse
-from drawing_engine.shapes import draw_path_with_speed, zigzag_fill_points
+from autosketch.drawing.strokes import draw_path_with_speed, zigzag_fill_points
 
 
 def test_zigzag_stays_inside_the_rectangle():

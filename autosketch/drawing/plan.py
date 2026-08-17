@@ -7,19 +7,18 @@ resultat sans bouger la souris ni ouvrir de fenetre.
 
 from dataclasses import dataclass
 
-from ai_engine.trajectory_optimizer import refine_with_two_opt
-from drawing_engine.grid_runs import extract_color_runs
-from drawing_engine.path_builder import contours_to_paths, smooth_path
-from drawing_engine.path_optimizer import optimize_path_order
-from drawing_engine.shapes import zigzag_fill_points
-from vision.color_segmentation import color_masks, quantize_colors, quantize_to_palette
-from vision.contour_detection import (
+from autosketch.drawing.paths import contours_to_paths, smooth_path
+from autosketch.drawing.routing import optimize_path_order, refine_with_two_opt
+from autosketch.drawing.runs import extract_color_runs
+from autosketch.drawing.strokes import zigzag_fill_points
+from autosketch.vision.colors import color_masks, quantize_colors, quantize_to_palette
+from autosketch.vision.contours import (
     detect_edges,
     find_contours,
     find_contours_from_mask,
     is_background_like,
 )
-from vision.pixel_grid import image_to_grid
+from autosketch.vision.grid import image_to_grid
 
 
 @dataclass

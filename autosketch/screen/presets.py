@@ -8,7 +8,7 @@ donc ce que tu as calibre chez toi.
 import json
 import os
 
-from plugins.palette import ColorPalette
+from autosketch.screen.palette import ColorPalette
 
 PRESETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "presets")
 
