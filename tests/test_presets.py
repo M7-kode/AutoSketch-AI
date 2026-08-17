@@ -1,3 +1,6 @@
+import os
+import sys
+
 import pytest
 
 from autosketch.screen import presets as presets_module
@@ -5,6 +8,7 @@ from autosketch.screen.palette import ColorPalette
 from autosketch.screen.presets import (
     SITE_NAMES,
     SITE_PRESETS,
+    default_presets_dir,
     has_preset,
     load_site_preset,
     preset_path,
@@ -24,6 +28,38 @@ def palette():
     palette.add_swatch((10, 20), (255, 0, 0))
     palette.add_swatch((30, 40), (0, 255, 0))
     return palette
+
+
+def test_from_the_sources_the_presets_sit_at_the_project_root(monkeypatch):
+    # Le module vit dans autosketch/screen/ : il faut remonter jusqu'a la racine,
+    # pas s'arreter dans le package.
+    monkeypatch.delattr(sys, "frozen", raising=False)
+    directory = default_presets_dir()
+
+    assert os.path.basename(directory) == "presets"
+    assert os.path.basename(os.path.dirname(directory)) != "autosketch"
+    assert os.path.isdir(os.path.dirname(directory))
+
+
+def test_in_the_executable_the_presets_leave_the_temporary_bundle(monkeypatch, tmp_path):
+    # PyInstaller efface son dossier temporaire a la fermeture : y ecrire ferait
+    # perdre la calibration a chaque redemarrage.
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setenv("APPDATA", str(tmp_path / "Roaming"))
+
+    directory = default_presets_dir()
+
+    assert str(tmp_path / "Roaming") in directory
+    assert os.path.basename(directory) == "presets"
+
+
+def test_the_executable_still_has_somewhere_to_write_without_appdata(monkeypatch):
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.delenv("APPDATA", raising=False)
+
+    directory = default_presets_dir()
+
+    assert directory.startswith(os.path.expanduser("~"))
 
 
 def test_the_expected_sites_are_offered():

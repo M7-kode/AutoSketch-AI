@@ -7,10 +7,28 @@ donc ce que tu as calibre chez toi.
 
 import json
 import os
+import sys
 
 from autosketch.screen.palette import ColorPalette
 
-PRESETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "presets")
+
+def default_presets_dir():
+    """Ou enregistrer les calibrations.
+
+    Dans l'executable, __file__ pointe dans le dossier temporaire que
+    PyInstaller efface a la fermeture : y ecrire ferait perdre la calibration
+    a chaque redemarrage. On passe donc par le dossier utilisateur, toujours
+    accessible en ecriture meme si l'exe est lance depuis un dossier protege.
+    """
+    if getattr(sys, "frozen", False):
+        base = os.environ.get("APPDATA") or os.path.expanduser("~")
+        return os.path.join(base, "AutoSketch", "presets")
+
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return os.path.join(project_root, "presets")
+
+
+PRESETS_DIR = default_presets_dir()
 
 SITE_PRESETS = [
     ("Skribbl.io", "skribbl"),
